@@ -48,32 +48,32 @@ pub enum Keyword {
 
 impl Keyword {
     pub fn from_str(ident: &str) -> Option<Self> {
-        return Some(match ident.to_uppercase().as_ref() {
-            "CREATE" => return Some(Keyword::Create),
-            "TABLE" => return Some(Keyword::Table),
-            "INT" => return Some(Keyword::Int),
-            "INTEGER" => return Some(Keyword::Integer),
-            "BOOLEAN" => return Some(Keyword::Boolean),
-            "BOOL" => return Some(Keyword::Bool),
-            "STRING" => return Some(Keyword::String),
-            "TEXT" => return Some(Keyword::Text),
-            "VARCHAR" => return Some(Keyword::Varchar),
-            "FLOAT" => return Some(Keyword::Float),
-            "DOUBLE" => return Some(Keyword::Double),
-            "SELECT" => return Some(Keyword::Select),
-            "FROM" => return Some(Keyword::From),
-            "INSERT" => return Some(Keyword::Insert),
-            "INTO" => return Some(Keyword::Into),
-            "VALUES" => return Some(Keyword::Values),
-            "TRUE" => return Some(Keyword::True),
-            "FALSE" => return Some(Keyword::False),
-            "DEFAULT" => return Some(Keyword::Default),
-            "NOT" => return Some(Keyword::Not),
-            "NULL" => return Some(Keyword::Null),
-            "PRIMARY" => return Some(Keyword::Primary),
-            "KEY" => return Some(Keyword::Key),
-            _ => return None,
-        });
+        return match ident.to_uppercase().as_ref() {
+            "CREATE" => Some(Keyword::Create),
+            "TABLE" => Some(Keyword::Table),
+            "INT" => Some(Keyword::Int),
+            "INTEGER" => Some(Keyword::Integer),
+            "BOOLEAN" => Some(Keyword::Boolean),
+            "BOOL" => Some(Keyword::Bool),
+            "STRING" => Some(Keyword::String),
+            "TEXT" => Some(Keyword::Text),
+            "VARCHAR" => Some(Keyword::Varchar),
+            "FLOAT" => Some(Keyword::Float),
+            "DOUBLE" => Some(Keyword::Double),
+            "SELECT" => Some(Keyword::Select),
+            "FROM" => Some(Keyword::From),
+            "INSERT" => Some(Keyword::Insert),
+            "INTO" => Some(Keyword::Into),
+            "VALUES" => Some(Keyword::Values),
+            "TRUE" => Some(Keyword::True),
+            "FALSE" => Some(Keyword::False),
+            "DEFAULT" => Some(Keyword::Default),
+            "NOT" => Some(Keyword::Not),
+            "NULL" => Some(Keyword::Null),
+            "PRIMARY" => Some(Keyword::Primary),
+            "KEY" => Some(Keyword::Key),
+            _ => None,
+        };
     }
 }
 
@@ -85,16 +85,11 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        return match self.scan() {
-            Ok(Some(token)) => return Some(Ok(token)),
-            Ok(None) => {
-                return self
-                    .iter
-                    .peek()
-                    .map(|c| return Err(Error::Parse(format!("[Lexer] Unexpeted character {}", c))));
-            }
-            Err(err) => return Some(Err(err)),
-        };
+        match self.scan() {
+            Ok(Some(token)) => Some(Ok(token)),
+            Ok(None) => self.iter.peek().map(|c| Err(Error::Parse(format!("[Lexer] Unexpeted character {}", c)))),
+            Err(err) => Some(Err(err)),
+        }
     }
 }
 
@@ -105,7 +100,7 @@ impl<'a> Lexer<'a> {
         };
     }
 
-    fn erase_whiteSpace(&mut self) {
+    fn erase_whitespace(&mut self) {
         self.next_while(|c| c.is_whitespace());
     }
 
@@ -114,7 +109,7 @@ impl<'a> Lexer<'a> {
         while let Some(c) = self.next_if(&predicate) {
             value.push(c);
         }
-        return Some(value).filter(|v| !v.is_empty());
+        Some(value).filter(|v| !v.is_empty())
     }
 
     fn next_if<F: Fn(char) -> bool>(&mut self, predicate: F) -> Option<char> {
@@ -137,13 +132,13 @@ impl<'a> Lexer<'a> {
         let mut val = String::new();
         loop {
             match self.iter.next() {
-                Some('\'') => return break,
+                Some('\'') => break,
                 Some(c) => val.push(c),
                 None => return Err(Error::Parse(format!("[Lexer] Unexpected end of string"))),
             }
         }
 
-        return Ok(Some(Token::String(val)));
+        Ok(Some(Token::String(val)))
     }
 
     /// 扫描数字，支持整数和浮点数
@@ -188,13 +183,13 @@ impl<'a> Lexer<'a> {
 
     /// 根据首字符类型分发到不同的扫描函数
     fn scan(&mut self) -> Result<Option<Token>> {
-        self.erase_whiteSpace();
-        return match self.iter.peek() {
-            Some('\'') => return self.scan_string(),
-            Some(c) if c.is_ascii_digit() => return Ok(self.scan_number()),
-            Some(c) if c.is_alphabetic() => return Ok(self.scan_ident()),
-            Some(_) => return Ok(self.scan_symbol()),
-            None => return Ok(None),
-        };
+        self.erase_whitespace();
+        match self.iter.peek() {
+            Some('\'') => self.scan_string(),
+            Some(c) if c.is_ascii_digit() => Ok(self.scan_number()),
+            Some(c) if c.is_alphabetic() => Ok(self.scan_ident()),
+            Some(_) => Ok(self.scan_symbol()),
+            None => Ok(None),
+        }
     }
 }
