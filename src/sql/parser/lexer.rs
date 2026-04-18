@@ -87,7 +87,10 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.scan() {
             Ok(Some(token)) => Some(Ok(token)),
-            Ok(None) => self.iter.peek().map(|c| Err(Error::Parse(format!("[Lexer] Unexpeted character {}", c)))),
+            Ok(None) => self
+                .iter
+                .peek()
+                .map(|c| Err(Error::Parse(format!("[Lexer] Unexpeted character {}", c)))),
             Err(err) => Some(Err(err)),
         }
     }
