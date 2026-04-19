@@ -1,7 +1,9 @@
 // 从 ast 模块引入 Column 结构体
 use ast::Column;
-// 从 lexer 模块引入 Keyword, Token
-use lexer::{Keyword, Token};
+// 从 lexer 模块引入 Keyword, Token, Lexer
+use lexer::{Keyword, Lexer, Token};
+// 引入 Peekable 迭代器包装器，支持预览下一个元素
+use std::iter::Peekable;
 
 // 从上级目录的 types 模块引入 DataType
 use super::types::DataType;
@@ -14,14 +16,177 @@ use crate::sql::parser::ast::Expression::Consts;
 pub mod ast;
 // 不公开 lexer 模块（内部实现）
 mod lexer;
-// 引入 common 模块（包含 Parser 结构体和 ParserExt trait）
-mod common;
 
-// 从 common 模块公开 Parser 和 ParserExt
-pub use common::{Parser, ParserExt};
+// ==================== Parser 结构体定义 ====================
 
-// 注意：Parser 结构体及其构造函数 new() 在 common.rs 中定义
-// 这里只实现业务相关的解析方法
+/// SQL 解析器结构体
+///
+/// 使用 Peekable 包装 Lexer，支持预览下一个 token 而不消费它
+pub struct Parser<'a> {
+    // 词法分析器，包装为 Peekable 以支持预览操作
+    lexer: Peekable<Lexer<'a>>,
+}
+
+/// Parser 构造函数实现
+impl<'a> Parser<'a> {
+    /// 创建新的 Parser 实例
+    ///
+    /// # 参数
+    /// - `input`: 要解析的 SQL 字符串
+    ///
+    /// # 返回
+    /// 返回一个新的 Parser 实例
+    pub fn new(input: &'a str) -> Self {
+        Parser {
+            // 创建 Lexer 并包装为 Peekable
+            lexer: Lexer::new(input).peekable(),
+        }
+    }
+}
+
+// ==================== ParserExt Trait 定义 ====================
+
+/// Parser 扩展 trait
+///
+/// 定义了解析器的基本操作方法，包括预览、获取、匹配 token 等
+pub trait ParserExt {
+    /// 预览下一个 token（不消费）
+    ///
+    /// # 返回
+    /// - `Ok(Some(token))`: 存在下一个 token
+    /// - `Ok(None)`: 已到达输入末尾
+    /// - `Err(e)`: 词法分析错误
+    fn peek(&mut self) -> Result<Option<Token>>;
+
+    /// 获取下一个 token（消费）
+    ///
+    /// # 返回
+    /// - `Ok(token)`: 成功获取 token
+    /// - `Err(e)`: 词法分析错误或输入已结束
+    fn next(&mut self) -> Result<Token>;
+
+    /// 获取下一个标识符 token
+    ///
+    /// # 返回
+    /// - `Ok(ident)`: 标识符字符串
+    /// - `Err(e)`: 下一个 token 不是标识符
+    fn next_ident(&mut self) -> Result<String>;
+
+    /// 获取下一个 token 并验证是否与期望值匹配
+    ///
+    /// # 参数
+    /// - `expect`: 期望的 token
+    ///
+    /// # 返回
+    /// - `Ok(())`: token 匹配
+    /// - `Err(e)`: token 不匹配
+    fn next_expect(&mut self, expect: Token) -> Result<()>;
+
+    /// 如果下一个 token 满足条件，则获取它
+    ///
+    /// # 参数
+    /// - `predicate`: 判断函数
+    ///
+    /// # 返回
+    /// - `Some(token)`: 满足条件并被获取
+    /// - `None`: 不满足条件（不消费 token）
+    fn next_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> Option<Token>;
+
+    /// 如果下一个 token 是关键字，则获取它
+    ///
+    /// # 返回
+    /// - `Some(token)`: 下一个 token 是关键字
+    /// - `None`: 下一个 token 不是关键字
+    fn next_if_keyword(&mut self) -> Option<Token>;
+
+    /// 如果下一个 token 与指定 token 相等，则获取它
+    ///
+    /// # 参数
+    /// - `token`: 要匹配的 token
+    ///
+    /// # 返回
+    /// - `Some(token)`: 匹配成功
+    /// - `None`: 匹配失败
+    fn next_if_token(&mut self, token: Token) -> Option<Token>;
+}
+
+// ==================== ParserExt 实现 ====================
+
+impl<'a> ParserExt for Parser<'a> {
+    /// 预览下一个 token（不消费）
+    fn peek(&mut self) -> Result<Option<Token>> {
+        // peek() 返回 Option<&Result<Token>>，需要 clone 并 transpose
+        // - clone(): 复制 token（因为 peek 返回引用）
+        // - transpose(): 将 Option<Result<T>> 转换为 Result<Option<T>>
+        self.lexer.peek().cloned().transpose()
+    }
+
+    /// 获取下一个 token（消费）
+    fn next(&mut self) -> Result<Token> {
+        match self.lexer.next() {
+            // 成功获取 token
+            Some(Ok(token)) => Ok(token),
+            // 词法分析错误
+            Some(Err(e)) => Err(e),
+            // 输入已结束
+            None => Err(Error::Parse("[Parser] Unexpected end of input".to_string())),
+        }
+    }
+
+    /// 获取下一个标识符 token
+    fn next_ident(&mut self) -> Result<String> {
+        match self.next()? {
+            // 成功获取标识符
+            Token::Ident(ident) => Ok(ident),
+            // 下一个 token 不是标识符，报错
+            token => Err(Error::Parse(format!(
+                "[Parser] Expected ident, got token {:?}",
+                token
+            ))),
+        }
+    }
+
+    /// 获取下一个 token 并验证是否与期望值匹配
+    fn next_expect(&mut self, expect: Token) -> Result<()> {
+        // 获取下一个 token
+        let token = self.next()?;
+        // 验证是否与期望值匹配
+        if token != expect {
+            return Err(Error::Parse(format!(
+                "[Parser] Expected token {:?}, got {:?}",
+                expect, token
+            )));
+        }
+        // 匹配成功
+        Ok(())
+    }
+
+    /// 如果下一个 token 满足条件，则获取它
+    fn next_if<F: Fn(&Token) -> bool>(&mut self, predicate: F) -> Option<Token> {
+        // 预览下一个 token，检查是否满足条件
+        // - peek().ok(): 忽略错误，只关心成功情况
+        // - flatten(): 将 Option<Option<Token>> 展开为 Option<Token>
+        // - filter(|t| predicate(t)): 应用判断函数
+        // - ?: 如果不满足条件，直接返回 None
+        self.peek().ok().flatten().filter(|t| predicate(t))?;
+        // 满足条件，消费并返回 token
+        self.next().ok()
+    }
+
+    /// 如果下一个 token 是关键字，则获取它
+    fn next_if_keyword(&mut self) -> Option<Token> {
+        // 检查下一个 token 是否匹配 Token::Keyword(_) 模式
+        self.next_if(|t| matches!(t, Token::Keyword(_)))
+    }
+
+    /// 如果下一个 token 和指定 token 相等，则获取它
+    fn next_if_token(&mut self, token: Token) -> Option<Token> {
+        // 检查下一个 token 是否与参数 token 相等
+        self.next_if(|t| t == &token)
+    }
+}
+
+// ==================== Parser 业务方法实现 ====================
 
 // 为 Parser 实现业务解析方法
 impl<'a> Parser<'a> {
