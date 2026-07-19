@@ -10,8 +10,6 @@ use super::types::DataType;
 // 引入错误类型和结果类型
 use crate::error::{Error, Result};
 // 引入 ast 模块中的 Consts 枚举
-use crate::sql::parser::ast::Expression::Consts;
-
 // 公开 ast 模块
 pub mod ast;
 // 不公开 lexer 模块（内部实现）
@@ -337,7 +335,7 @@ impl<'a> Parser<'a> {
         let mut column = Column {
             name: self.next_ident()?, // 解析列名
             // 解析数据类型
-            datatype: match self.next()? {
+            data_type: match self.next()? {
                 Token::Keyword(Keyword::Int) | Token::Keyword(Keyword::Integer) => {
                     DataType::Integer
                 }

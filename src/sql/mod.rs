@@ -1,4 +1,4 @@
 pub mod parser;
-mod types;
-mod plan;
-mod schema;
+pub mod plan;
+pub mod schema;
+pub mod types;

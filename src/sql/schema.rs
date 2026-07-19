@@ -8,7 +8,7 @@ pub struct Table {
 #[derive(Debug, PartialEq)]
 pub struct Column {
     pub name: String,
-    pub datatype: DataType,
+    pub data_type: DataType,
     pub nullable: bool,
     pub default: Option<Value>,
 }

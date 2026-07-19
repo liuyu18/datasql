@@ -1,16 +1,12 @@
 use super::parser::ast::{Consts, Expression};
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DataType {
     Boolean,
     Integer,
     Float,
-    String
-
+    String,
 }
-
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
@@ -18,7 +14,7 @@ pub enum Value {
     Boolean(bool),
     Integer(i64),
     Float(f64),
-    String(String)
+    String(String),
 }
 
 impl Value {

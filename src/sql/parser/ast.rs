@@ -21,7 +21,7 @@ pub enum Statement {
 #[derive(Debug, PartialEq)]
 pub struct Column {
     pub name: String,
-    pub datatype: DataType,
+    pub data_type: DataType,
     pub nullable: Option<bool>,
     pub default: Option<Expression>,
 }
